@@ -2,7 +2,6 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
-import java.util.UUID;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 
@@ -11,13 +10,7 @@ public class PersonalTaskManagerViolations {
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
     /**
-     * Chức năng thêm nhiệm vụ mới (đã loại bỏ isRecurring)
-     *
-     * @param title Tiêu đề nhiệm vụ
-     * @param description Mô tả nhiệm vụ
-     * @param dueDateStr Ngày đến hạn (YYYY-MM-DD)
-     * @param priorityLevel Mức ưu tiên ("Thấp", "Trung bình", "Cao")
-     * @return JSONObject của task hoặc null nếu lỗi
+     * Thêm nhiệm vụ mới với ID tự động tăng
      */
     public JSONObject addNewTaskWithViolations(String title, String description,
                                               String dueDateStr, String priorityLevel) {
@@ -67,11 +60,19 @@ public class PersonalTaskManagerViolations {
             }
         }
 
-        String taskId = UUID.randomUUID().toString();
+        // Tính toán ID mới
+        int nextId = 1;
+        for (Object obj : tasks) {
+            JSONObject task = (JSONObject) obj;
+            int taskId = Integer.parseInt(task.get("id").toString());
+            if (taskId >= nextId) {
+                nextId = taskId + 1;
+            }
+        }
 
-        JSONObject task mới
+        // Tạo task mới với ID số
         JSONObject newTask = new JSONObject();
-        newTask.put("id", taskId);
+        newTask.put("id", nextId);
         newTask.put("title", title);
         newTask.put("description", description);
         newTask.put("due_date", dueDate.format(DATE_FORMATTER));
@@ -79,12 +80,11 @@ public class PersonalTaskManagerViolations {
         newTask.put("status", "Chưa hoàn thành");
         newTask.put("created_at", LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME));
         newTask.put("last_updated_at", LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME));
-        // ĐÃ XÓA: is_recurring và recurrence_pattern
 
         tasks.add(newTask);
         DatabaseManager.saveTasksToDb(tasks);
 
-        System.out.println(String.format("Đã thêm nhiệm vụ mới thành công với ID: %s", taskId));
+        System.out.println(String.format("Đã thêm nhiệm vụ mới thành công với ID: %d", nextId));
         return newTask;
     }
 
