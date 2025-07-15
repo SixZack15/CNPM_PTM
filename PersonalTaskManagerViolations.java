@@ -4,6 +4,8 @@ import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
+import java.util.HashSet;
+import java.util.Set;
 
 public class PersonalTaskManagerViolations {
 
@@ -45,15 +47,30 @@ public class PersonalTaskManagerViolations {
         return false;
     }
 
-    // Phương thức kiểm tra trùng lặp
+    // Tạo khóa duy nhất từ task
+    private String buildTaskKey(String title, LocalDate dueDate) {
+        return title.toLowerCase() + "|" + dueDate.format(DATE_FORMATTER);
+    }
+
+    // [TỐI ƯU] Kiểm tra trùng lặp dùng HashSet
     private boolean isTaskDuplicate(JSONArray tasks, String title, LocalDate dueDate) {
+        Set<String> existingKeys = new HashSet<>();
+        
+        // Xây dựng tập hợp khóa duy nhất
         for (Object obj : tasks) {
             JSONObject task = (JSONObject) obj;
-            if (task.get("title").toString().equalsIgnoreCase(title) &&
-                task.get("due_date").toString().equals(dueDate.format(DATE_FORMATTER))) {
-                System.out.println(String.format("Lỗi: Nhiệm vụ '%s' đã tồn tại với cùng ngày đến hạn.", title));
-                return true;
-            }
+            String taskKey = buildTaskKey(
+                task.get("title").toString(),
+                LocalDate.parse(task.get("due_date").toString(), DATE_FORMATTER)
+            );
+            existingKeys.add(taskKey);
+        }
+
+        // Kiểm tra trùng lặp trong O(1)
+        String newKey = buildTaskKey(title, dueDate);
+        if (existingKeys.contains(newKey)) {
+            System.out.println(String.format("Lỗi: Nhiệm vụ '%s' đã tồn tại với cùng ngày đến hạn.", title));
+            return true;
         }
         return false;
     }
@@ -74,7 +91,7 @@ public class PersonalTaskManagerViolations {
     }
 
     /**
-     * Logic chính sau khi tái cấu trúc
+     * Logic chính sau khi tối ưu
      */
     public JSONObject addNewTaskWithViolations(String title, String description,
                                               String dueDateStr, String priorityLevel) {
@@ -152,5 +169,35 @@ public class PersonalTaskManagerViolations {
         );
         System.out.println("Kết quả tạo task mẫu:");
         System.out.println(testTask.toJSONString());
+        
+        // Kiểm thử hiệu năng với 1000 task
+        System.out.println("\n[KIỂM THỬ HIỆU NĂNG] Tạo 1000 task:");
+        JSONArray massTasks = new JSONArray();
+        long startTime = System.currentTimeMillis();
+        
+        for (int i = 0; i < 1000; i++) {
+            JSONObject task = manager.createNewTask(
+                i, 
+                "Task " + i, 
+                "Mô tả " + i, 
+                LocalDate.now().plusDays(i), 
+                "Trung bình"
+            );
+            massTasks.add(task);
+        }
+        
+        // Kiểm tra trùng lặp với dataset lớn
+        boolean isDuplicate = manager.isTaskDuplicate(
+            massTasks, 
+            "Task 999", 
+            LocalDate.now().plusDays(999)
+        );
+        
+        long duration = System.currentTimeMillis() - startTime;
+        System.out.println(String.format(
+            "Kiểm tra 1000 task hoàn thành trong %d ms | Trùng lặp: %s", 
+            duration, 
+            isDuplicate
+        ));
     }
 }
