@@ -52,7 +52,7 @@ public class PersonalTaskManagerViolations {
         return title.toLowerCase() + "|" + dueDate.format(DATE_FORMATTER);
     }
 
-    // [TỐI ƯU] Kiểm tra trùng lặp dùng HashSet
+    // Kiểm tra trùng lặp dùng HashSet
     private boolean isTaskDuplicate(JSONArray tasks, String title, LocalDate dueDate) {
         Set<String> existingKeys = new HashSet<>();
         
@@ -90,28 +90,8 @@ public class PersonalTaskManagerViolations {
         return newTask;
     }
 
-    /**
-     * Logic chính sau khi tối ưu
-     */
-    public JSONObject addNewTaskWithViolations(String title, String description,
-                                              String dueDateStr, String priorityLevel) {
-
-        // Kiểm tra tiêu đề
-        if (!validateTitle(title)) return null;
-        
-        // Kiểm tra và phân tích ngày
-        LocalDate dueDate = validateAndParseDate(dueDateStr);
-        if (dueDate == null) return null;
-        
-        // Kiểm tra mức ưu tiên
-        if (!validatePriority(priorityLevel)) return null;
-
-        JSONArray tasks = DatabaseManager.loadTasksFromDb();
-
-        // Kiểm tra trùng lặp
-        if (isTaskDuplicate(tasks, title, dueDate)) return null;
-
-        // Tính toán ID mới
+    // Tạo ID mới cho task
+    private int generateNextId(JSONArray tasks) {
         int nextId = 1;
         for (Object obj : tasks) {
             JSONObject task = (JSONObject) obj;
@@ -120,12 +100,49 @@ public class PersonalTaskManagerViolations {
                 nextId = taskId + 1;
             }
         }
+        return nextId;
+    }
 
-        // Sử dụng phương thức tạo task tách biệt
+    // Lưu danh sách task vào database
+    private void saveTaskList(JSONArray tasks) {
+        DatabaseManager.saveTasksToDb(tasks);
+    }
+
+    // Kiểm tra dữ liệu đầu vào
+    private boolean validateTaskInput(String title, String dueDateStr, String priorityLevel) {
+        return validateTitle(title) && 
+               validateAndParseDate(dueDateStr) != null && 
+               validatePriority(priorityLevel);
+    }
+
+    /**
+     * Logic chính sau khi tái cấu trúc
+     */
+    public JSONObject addNewTaskWithViolations(String title, String description,
+                                              String dueDateStr, String priorityLevel) {
+
+        // Kiểm tra dữ liệu đầu vào
+        if (!validateTaskInput(title, dueDateStr, priorityLevel)) {
+            return null;
+        }
+        
+        LocalDate dueDate = validateAndParseDate(dueDateStr);
+        JSONArray tasks = DatabaseManager.loadTasksFromDb();
+
+        // Kiểm tra trùng lặp
+        if (isTaskDuplicate(tasks, title, dueDate)) {
+            return null;
+        }
+
+        // Tạo ID mới
+        int nextId = generateNextId(tasks);
+        
+        // Tạo task mới
         JSONObject newTask = createNewTask(nextId, title, description, dueDate, priorityLevel);
 
+        // Lưu task vào danh sách
         tasks.add(newTask);
-        DatabaseManager.saveTasksToDb(tasks);
+        saveTaskList(tasks);
 
         System.out.println(String.format("Đã thêm nhiệm vụ mới thành công với ID: %d", nextId));
         return newTask;
@@ -134,7 +151,9 @@ public class PersonalTaskManagerViolations {
     public static void main(String[] args) {
         PersonalTaskManagerViolations manager = new PersonalTaskManagerViolations();
         
-        System.out.println("\nThêm nhiệm vụ hợp lệ:");
+        // Nhóm các test case liên quan
+        System.out.println("===== KIỂM THỬ CHỨC NĂNG CHÍNH =====");
+        System.out.println("\n[1] Thêm nhiệm vụ hợp lệ:");
         manager.addNewTaskWithViolations(
             "Mua sách",
             "Sách Công nghệ phần mềm.",
@@ -142,7 +161,7 @@ public class PersonalTaskManagerViolations {
             "Cao"
         );
 
-        System.out.println("\nThử thêm trùng lặp:");
+        System.out.println("\n[2] Thử thêm trùng lặp:");
         manager.addNewTaskWithViolations(
             "Mua sách",
             "Mô tả khác",
@@ -150,7 +169,7 @@ public class PersonalTaskManagerViolations {
             "Trung bình"
         );
 
-        System.out.println("\nThêm với mức ưu tiên không hợp lệ:");
+        System.out.println("\n[3] Thêm với mức ưu tiên không hợp lệ:");
         manager.addNewTaskWithViolations(
             "Gọi điện",
             "Liên lạc khách hàng",
@@ -158,8 +177,9 @@ public class PersonalTaskManagerViolations {
             "Rất cao"
         );
         
-        // Test phương thức tạo task độc lập
-        System.out.println("\n[KIỂM THỬ] Tạo task không phụ thuộc database:");
+        // Nhóm kiểm thử phụ trợ
+        System.out.println("\n===== KIỂM THỬ PHỤ TRỢ =====");
+        System.out.println("[4] Tạo task không phụ thuộc database:");
         JSONObject testTask = manager.createNewTask(
             99, 
             "Task kiểm thử", 
@@ -170,8 +190,8 @@ public class PersonalTaskManagerViolations {
         System.out.println("Kết quả tạo task mẫu:");
         System.out.println(testTask.toJSONString());
         
-        // Kiểm thử hiệu năng với 1000 task
-        System.out.println("\n[KIỂM THỬ HIỆU NĂNG] Tạo 1000 task:");
+        // Kiểm thử hiệu năng
+        System.out.println("\n[5] Kiểm thử hiệu năng với 1000 task:");
         JSONArray massTasks = new JSONArray();
         long startTime = System.currentTimeMillis();
         
@@ -186,7 +206,6 @@ public class PersonalTaskManagerViolations {
             massTasks.add(task);
         }
         
-        // Kiểm tra trùng lặp với dataset lớn
         boolean isDuplicate = manager.isTaskDuplicate(
             massTasks, 
             "Task 999", 
